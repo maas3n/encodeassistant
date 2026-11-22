@@ -257,12 +257,25 @@ class _EncodePageState extends State<EncodePage> {
     _field(_crop, 'Crop left, top, right, bottom (blank for auto)'),
     DropdownButtonFormField<String>(
       initialValue: _scan,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'Scan type'),
       items: const [
-        DropdownMenuItem(value: 'auto', child: Text('Inspect automatically')),
-        DropdownMenuItem(value: 'progressive', child: Text('Progressive')),
-        DropdownMenuItem(value: 'tff', child: Text('Interlaced, top field first')),
-        DropdownMenuItem(value: 'bff', child: Text('Interlaced, bottom field first')),
+        DropdownMenuItem(
+          value: 'auto',
+          child: Text('Inspect automatically', overflow: TextOverflow.ellipsis),
+        ),
+        DropdownMenuItem(
+          value: 'progressive',
+          child: Text('Progressive', overflow: TextOverflow.ellipsis),
+        ),
+        DropdownMenuItem(
+          value: 'tff',
+          child: Text('Interlaced, top field first', overflow: TextOverflow.ellipsis),
+        ),
+        DropdownMenuItem(
+          value: 'bff',
+          child: Text('Interlaced, bottom field first', overflow: TextOverflow.ellipsis),
+        ),
       ],
       onChanged: (value) => setState(() => _scan = value ?? 'auto'),
     ),
