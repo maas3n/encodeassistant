@@ -125,13 +125,13 @@ def smoke_test(bundle, family):
         ], env=env)
         frames = json.loads(probe)["frames"]
         assert len(frames) == 72 and any(frame["pict_type"] == "B" for frame in frames)
-        path = movie.as_posix()
-        script.write_text(f'LoadPlugin("{ffms.as_posix()}")\nFFVideoSource("{path}").Trim(0, -1)\n')
+        path = str(movie)
+        script.write_text(f'LoadPlugin("{ffms}")\nFFVideoSource("{path}").Trim(0, -1)\n')
         raw = subprocess.check_output([tools / f"avs2yuv{suffix}", script, "-o", "-"], env=env)
         assert raw.startswith(b"YUV4MPEG2 W64 H64")
         if yadif.exists():
             script.write_text(
-                f'LoadPlugin("{yadif.as_posix()}")\n'
+                f'LoadPlugin("{yadif}")\n'
                 'BlankClip(length=4, width=64, height=64, pixel_type="YV12")\n'
                 'AssumeTFF().Yadifmod2(order=1).Trim(0, -1)\n'
             )

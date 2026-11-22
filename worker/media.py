@@ -123,7 +123,7 @@ class Runner:
 
 
 def quote_avs(path: Path) -> str:
-    value = path.as_posix()
+    value = str(path)
     if any(c in value for c in ('"', "\n", "\r", "\x00")):
         raise ValueError("AviSynth paths must not contain quotation marks or line breaks.")
     return f'"{value}"'

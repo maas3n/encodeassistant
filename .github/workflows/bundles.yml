@@ -130,6 +130,10 @@ jobs:
         with:
           path: media
           key: ${{ steps.media-cache.outputs.cache-primary-key }}
+      - name: Collect Windows runtime DLLs
+        if: steps.select.outputs.build == 'true' && runner.os == 'Windows'
+        shell: msys2 {0}
+        run: ci/collect_windows_runtime.sh media
       - name: Build standalone worker
         if: steps.select.outputs.build == 'true'
         shell: bash
