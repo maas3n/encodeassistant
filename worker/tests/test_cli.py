@@ -18,7 +18,7 @@ class TerminalTests(unittest.TestCase):
             source.touch()
 
             def review(job, video):
-                self.assertEqual(video, source)
+                self.assertEqual(video, source.resolve())
                 self.assertEqual(job.request.tuning_kbps, 18000)
                 self.assertEqual(job.request.expected_kbps, 20000)
                 return {"crf": 17, "sample_kbps": 19255}
@@ -32,7 +32,7 @@ class TerminalTests(unittest.TestCase):
                 code = main(["tune", str(source), "--expected-kbps", "20000",
                              "--work", str(Path(root) / "jobs"), "--json"])
 
-            self.assertEqual(code, 0)
+            self.assertEqual(code, 0, stderr.getvalue())
             result = json.loads(stdout.getvalue())
             self.assertEqual(result["report"]["crf"], 17)
             self.assertTrue((Path(result["job_directory"]) / "job.json").is_file())
