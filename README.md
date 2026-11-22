@@ -2,6 +2,14 @@
 
 Encode Assistant runs a repeatable x264 tuning workflow and asks GPT-6.2 Sol to visually compare matched samples. The graphical client runs on Windows, Linux, macOS, Android, iOS, and Chromebooks with Android app support. It lets you select a source, configure tuning, control jobs, and inspect the final settings and visual comparisons. A separate worker runs on the machine with the video files and encoding tools. Every client connects to that same worker.
 
+## Download the graphical apps
+
+Get the [bundled GUI release](https://github.com/maas3n/encodeassistant/releases/tag/gui-v0.1.0) for Windows x64, Linux x64, macOS on Apple Silicon or Intel, Android, ChromeOS, and iOS.
+
+The desktop archives include the GUI, worker and CLI, MediaInfo, AviSynth+, Avs2YUV, FFMS2, Yadifmod2, x264, and ffprobe. Extract the archive and follow `START-HERE.md`. On Windows, launch `start-worker.cmd`. On macOS and Linux, run `./start-worker.sh` in Terminal. Choose a writable video folder and enter your OpenAI API key when prompted. Open the graphical app and connect to `http://127.0.0.1:8765`. Linux needs GTK 3. The Windows archive includes the Microsoft Visual C++ Redistributable in its `third-party` folder.
+
+The Android and ChromeOS clients use the same debug-signed APK. The iOS downloads contain an Xcode Simulator app and an unsigned device build. Connect those clients to a desktop or server worker using the [LAN setup below](#serve-the-graphical-clients).
+
 ## Terminal CLI
 
 Use `encodeassistant tune` to run the x264 workflow on the machine holding the video. Use `encodeassistant serve` to run a worker that the graphical clients can connect to.
@@ -105,7 +113,7 @@ encodeassistant serve --library "/srv/videos" --work "/srv/encode-jobs"   --host
 
 Enter the server's LAN address, port, and worker token in the app. Run `encodeassistant tune --help`, `encodeassistant doctor --help`, or `encodeassistant serve --help` for the options on your installed version.
 
-## Start the worker
+## Start the worker from source
 
 Install Python 3.12+, MediaInfo, AviSynth+, FFMS2, Avs2YUV, standalone x264, and ffprobe. Ensure mediainfo, avs2yuv, x264, and ffprobe are on the worker's PATH. ffprobe reads frame types and timestamps. The worker encodes with the AviSynth+ → Avs2YUV → x264 pipe.
 
@@ -134,6 +142,8 @@ Run **Build Encode Assistant** in the repository's Actions tab. The build jobs g
 - Windows, Linux, and macOS have desktop app archives.
 - Android and ChromeOS use the same debug APK. The separately labeled ChromeOS artifact includes ARM64 and x86-64 support and can run in a resizable Chromebook window with a mouse and keyboard. Use [ADB on a Chromebook that supports Android apps and sideloading](https://support.google.com/chromebook/answer/9770692) to install the APK.
 - iOS includes a simulator app and an unsigned device app. Sign the device build on a Mac before installing it on a physical iPhone.
+
+Run **Package desktop apps with encoding tools** with a successful GUI run ID to assemble the portable desktop archives. The [media input lockfile](ci/media-sources.json) records the versions and SHA-256 hashes. The bundling workflow runs a synthetic encode and verifies FFMS2 decoding and B-frame detection.
 
 The build workflow also runs the worker tests and Flutter analysis and widget tests. OpenAI credentials are required on a worker only when running an encoding job. Actions builds the client without media files or an API key.
 

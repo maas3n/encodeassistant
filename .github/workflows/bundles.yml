@@ -130,6 +130,9 @@ jobs:
           GUI_ARCHIVE: ${{ matrix.archive }}
           EXE_SUFFIX: ${{ matrix.exe }}
         run: python ci/bundle_desktop.py "$PLATFORM" "gui/$GUI_ARCHIVE" "dist/encodeassistant$EXE_SUFFIX" media packages
+      - name: Include Microsoft Visual C++ Redistributable
+        if: steps.select.outputs.build == 'true' && runner.os == 'Windows'
+        run: python ci/include_windows_runtime.py packages/encode-assistant-windows-x86_64.zip
       - uses: actions/upload-artifact@v6
         if: steps.select.outputs.build == 'true'
         with:
