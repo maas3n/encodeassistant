@@ -19,21 +19,35 @@ def plist_update(path: Path, fields: dict):
         plistlib.dump(data, handle, sort_keys=False)
 
 
+def configure_android(path: Path):
+    ET.register_namespace("android", ANDROID)
+    tree = ET.parse(path, parser=ET.XMLParser(target=ET.TreeBuilder(insert_comments=True)))
+    manifest = tree.getroot()
+    name = f"{{{ANDROID}}}name"
+    application = manifest.find("application")
+    if application is None:
+        raise ValueError("The generated Android manifest has no application.")
+
+    if not any(element.get(name) == "android.permission.INTERNET"
+               for element in manifest.findall("uses-permission")):
+        manifest.insert(0, ET.Element("uses-permission", {name: "android.permission.INTERNET"}))
+    touchscreen = next((element for element in manifest.findall("uses-feature")
+                        if element.get(name) == "android.hardware.touchscreen"), None)
+    if touchscreen is None:
+        touchscreen = ET.Element("uses-feature", {name: "android.hardware.touchscreen"})
+        manifest.insert(0, touchscreen)
+    touchscreen.set(f"{{{ANDROID}}}required", "false")
+    application.set(f"{{{ANDROID}}}resizeableActivity", "true")
+    application.set(f"{{{ANDROID}}}usesCleartextTraffic", "true")
+    ET.indent(tree, space="    ")
+    tree.write(path, encoding="utf-8", xml_declaration=True)
+
+
 def prepare(template: Path, app: Path, platform: str):
     target = app / platform
     shutil.copytree(template / platform, target, dirs_exist_ok=True)
     if platform == "android":
-        ET.register_namespace("android", ANDROID)
-        manifest = target / "app/src/main/AndroidManifest.xml"
-        # Keep literal text and comments from the generated Gradle template.
-        content = manifest.read_text(encoding="utf-8")
-        permission = '    <uses-permission android:name="android.permission.INTERNET" />'
-        if permission not in content:
-            content = content.replace("    <application", permission + "\n    <application", 1)
-        if 'android:usesCleartextTraffic=' not in content:
-            content = content.replace("    <application", '    <application android:usesCleartextTraffic="true"', 1)
-        ET.fromstring(content)
-        manifest.write_text(content, encoding="utf-8")
+        configure_android(target / "app/src/main/AndroidManifest.xml")
     if platform == "ios":
         plist_update(target / "Runner/Info.plist", {
             "NSLocalNetworkUsageDescription": "Connect to your Encode Assistant worker.",

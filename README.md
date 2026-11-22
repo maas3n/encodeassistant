@@ -1,6 +1,6 @@
 # Encode Assistant
 
-Encode Assistant runs a repeatable x264 tuning workflow and asks GPT-6.2 Sol to visually compare matched samples. The Flutter client runs on Windows, Linux, macOS, Android, and iOS. A separate worker runs on the machine with the video files and encoding tools. Desktop and mobile clients connect to that same worker.
+Encode Assistant runs a repeatable x264 tuning workflow and asks GPT-6.2 Sol to visually compare matched samples. The graphical client runs on Windows, Linux, macOS, Android, iOS, and Chromebooks with Android app support. It lets you select a source, configure tuning, control jobs, and inspect the final settings and visual comparisons. A separate worker runs on the machine with the video files and encoding tools. Every client connects to that same worker.
 
 ## Start the worker
 
@@ -26,7 +26,11 @@ The worker uses 8-bit 4:2:0 High@L4.1 settings and retains supported source colo
 
 ## Build the apps
 
-Run **Build Encode Assistant** in the repository's Actions tab. The build jobs generate platform runners with the pinned Flutter version, build the client, and upload downloadable artifacts. The Android artifact is a debug APK. The iOS artifact includes a simulator app and an unsigned device app. Sign the device build on a Mac before installing it on a physical iPhone.
+Run **Build Encode Assistant** in the repository's Actions tab. The build jobs generate platform runners with the pinned Flutter version, build the graphical client, and upload downloadable artifacts.
+
+- Windows, Linux, and macOS have desktop app archives.
+- Android and ChromeOS use the same debug APK. The separately labeled ChromeOS artifact includes ARM64 and x86-64 support and can run in a resizable Chromebook window with a mouse and keyboard. Use [ADB on a Chromebook that supports Android apps and sideloading](https://support.google.com/chromebook/answer/9770692) to install the APK.
+- iOS includes a simulator app and an unsigned device app. Sign the device build on a Mac before installing it on a physical iPhone.
 
 The build workflow also runs the worker tests and Flutter analysis and widget tests. OpenAI credentials are required on a worker only when running an encoding job. Actions builds the client without media files or an API key.
 

@@ -8,7 +8,9 @@ import 'package:flutter/services.dart';
 void main() => runApp(const EncodeAssistant());
 
 class EncodeAssistant extends StatelessWidget {
-  const EncodeAssistant({super.key});
+  const EncodeAssistant({super.key, this.createWorker = WorkerClient.new});
+
+  final WorkerClient Function(String, String) createWorker;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -23,7 +25,7 @@ class EncodeAssistant extends StatelessWidget {
       scaffoldBackgroundColor: const Color(0xff101513),
       inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
     ),
-    home: const EncodePage(),
+    home: EncodePage(createWorker: createWorker),
   );
 }
 
@@ -69,7 +71,10 @@ class WorkerClient {
 }
 
 class EncodePage extends StatefulWidget {
-  const EncodePage({super.key});
+  const EncodePage({super.key, required this.createWorker});
+
+  final WorkerClient Function(String, String) createWorker;
+
   @override
   State<EncodePage> createState() => _EncodePageState();
 }
@@ -116,7 +121,7 @@ class _EncodePageState extends State<EncodePage> {
   }
 
   Future<void> _connect() => _action(() async {
-    final client = WorkerClient(_address.text, _token.text.trim());
+    final client = widget.createWorker(_address.text, _token.text.trim());
     try {
       final health = await client.request('/health');
       final sources = await client.request('/sources');
@@ -285,6 +290,9 @@ class _EncodePageState extends State<EncodePage> {
     final progress = (job['progress'] as num).toDouble();
     final files = (report?['comparison_files'] as List?)?.cast<String>() ?? [];
     final settings = report?['settings'] as Map<String, dynamic>?;
+    final reviews = report?['crf_reviews'] as Map<String, dynamic>?;
+    final review = (reviews?[report?['crf']?.toString()] ??
+        report?['verification']) as Map<String, dynamic>?;
     return _panel('Job result', [
       Text(job['source'] as String, style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
@@ -308,6 +316,7 @@ class _EncodePageState extends State<EncodePage> {
           Text('${report['crf_inspected_b_frames']} inspected of '
                '${report['crf_shared_b_frames']} shared B-frame timestamps'),
         if (report['crop'] != null) Text('Crop (L/T/R/B) ${report['crop']}'),
+        if (review != null) _visualReview(review),
         if (commands != null)
           for (final entry in commands.entries)
             ExpansionTile(
@@ -347,32 +356,77 @@ class _EncodePageState extends State<EncodePage> {
     ]);
   }
 
+  Widget _visualReview(Map<String, dynamic> review) => ExpansionTile(
+    tilePadding: EdgeInsets.zero,
+    initiallyExpanded: true,
+    title: const Text('Visual review'),
+    expandedCrossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(review['summary'] as String),
+      for (final finding in (review['findings'] as List).cast<Map<String, dynamic>>())
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(finding['observation'] as String),
+          subtitle: Text('Frame ${finding['frame']} · ${finding['category']}'),
+        ),
+    ],
+  );
+
+  Widget _recentJobs() => _panel('Recent jobs', [
+    for (final job in _jobs.take(8))
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(job['source'] as String),
+        subtitle: Text(job['status'] as String),
+        onTap: () {
+          setState(() => _job = job);
+          _watch();
+        },
+      ),
+  ]);
+
+  Widget _workspace(BoxConstraints viewport) {
+    final controls = [
+      _connection(),
+      if (_error != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        ),
+      if (_worker != null) _jobForm(),
+      if (_jobs.length > 1) _recentJobs(),
+    ];
+    final showColumns = viewport.maxWidth >= 1040 && _job != null;
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.all(20),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: showColumns ? 1240 : 800),
+          child: showColumns
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 400,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: controls),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(child: _result()),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [...controls, if (_job != null) _result()],
+                ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Encode Assistant')),
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 880),
-        child: ListView(padding: const EdgeInsets.all(20), children: [
-          _connection(),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ),
-          if (_worker != null) _jobForm(),
-          if (_jobs.length > 1) _panel('Recent jobs', [
-            for (final job in _jobs.take(8))
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(job['source'] as String),
-                subtitle: Text(job['status'] as String),
-                onTap: () { setState(() => _job = job); _watch(); },
-              ),
-          ]),
-          if (_job != null) _result(),
-        ]),
-      ),
-    ),
+    body: SafeArea(child: LayoutBuilder(builder: (_, viewport) => _workspace(viewport))),
   );
 }

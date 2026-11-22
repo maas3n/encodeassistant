@@ -101,12 +101,21 @@ jobs:
           app_bundle=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
           test -n "$app_bundle"
           ditto -c -k --keepParent "$app_bundle" ../dist/encode-assistant-macos.zip
-      - name: Build Android APK
+      - name: Build Android and ChromeOS APK
         if: matrix.platform == 'android'
         working-directory: app
         run: |
-          flutter build apk --debug
+          flutter build apk --debug --target-platform android-arm,android-arm64,android-x64
           cp build/app/outputs/flutter-apk/app-debug.apk ../dist/encode-assistant-android-debug.apk
+          python - <<'PY'
+          from zipfile import ZipFile
+
+          with ZipFile("../dist/encode-assistant-android-debug.apk") as apk:
+              files = set(apk.namelist())
+              for abi in ("arm64-v8a", "x86_64"):
+                  if f"lib/{abi}/libflutter.so" not in files:
+                      raise SystemExit(f"The APK is missing the Flutter engine for {abi}.")
+          PY
       - name: Build iOS device and simulator artifacts
         if: matrix.platform == 'ios'
         shell: bash
@@ -120,5 +129,13 @@ jobs:
         with:
           name: encode-assistant-${{ matrix.platform }}
           path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload the Chromebook GUI
+        if: matrix.platform == 'android'
+        uses: actions/upload-artifact@v6
+        with:
+          name: encode-assistant-chromeos
+          path: dist/encode-assistant-android-debug.apk
           if-no-files-found: error
           retention-days: 14
