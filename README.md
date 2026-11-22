@@ -4,41 +4,106 @@ Encode Assistant runs a repeatable x264 tuning workflow and asks GPT-6.2 Sol to 
 
 ## Terminal CLI
 
-Install with Homebrew on macOS or Linux:
+Use `encodeassistant tune` to run the x264 workflow on the machine holding the video. Use `encodeassistant serve` to run a worker that the graphical clients can connect to.
+
+### Install the CLI
+
+#### Homebrew on macOS or Linux
 
 ```sh
 brew tap maas3n/encodeassistant https://github.com/maas3n/encodeassistant.git
 brew install maas3n/encodeassistant/encodeassistant
 ```
 
-On Debian 13, download the architecture-independent `.deb` from [Releases](https://github.com/maas3n/encodeassistant/releases) and run:
+#### Debian 13
 
 ```sh
+curl -fLO https://github.com/maas3n/encodeassistant/releases/download/cli-v0.1.0/encodeassistant_0.1.0_all.deb
 sudo apt install ./encodeassistant_0.1.0_all.deb
 ```
 
-On other Unix systems with Python 3.12 or later and pipx:
+#### Other Unix systems
+
+Use Python 3.12 or newer and pipx.
 
 ```sh
 pipx install 'git+https://github.com/maas3n/encodeassistant.git'
 ```
 
-The packages install the Encode Assistant command. Install MediaInfo, AviSynth+, an AviSynth-enabled FFMS2 plugin, Avs2YUV, standalone x264, and ffprobe on the machine that will encode. Homebrew provides `media-info`, `avisynthplus`, `x264`, and `ffmpeg` (for ffprobe). FFMS2 must expose `FFVideoSource` to AviSynth+.
+Standalone archives for macOS and Linux are available on the [CLI release page](https://github.com/maas3n/encodeassistant/releases/tag/cli-v0.1.0).
 
-With the tools on PATH and `OPENAI_API_KEY` set in your environment:
+### Configure the encoding machine
+
+Install MediaInfo, AviSynth+, an AviSynth-enabled FFMS2 plugin, Avs2YUV, standalone x264, and ffprobe. Put `mediainfo`, `avs2yuv`, `x264`, and `ffprobe` on PATH. Homebrew provides `media-info`, `avisynthplus`, `x264`, and `ffmpeg`, which supplies ffprobe. The worker uses ffprobe to read frame timestamps and types. It encodes through AviSynth+ → Avs2YUV → x264.
+
+Set `OPENAI_API_KEY` in the environment where you run the CLI. The default review model is `gpt-6.2-sol`. Set `ENCODEASSISTANT_MODEL` if you want to choose another compatible model. If AviSynth+ needs an explicit path to the FFMS2 plugin, set `ENCODEASSISTANT_FFMS2_PLUGIN`. For interlaced sources, make Yadifmod2 available through AviSynth+ autoload or set `ENCODEASSISTANT_YADIF_PLUGIN` to its path.
 
 ```sh
+export OPENAI_API_KEY='replace-with-your-openai-api-key'
+encodeassistant --version
 encodeassistant doctor
-encodeassistant tune "input.mkv" --expected-kbps 20000 --tuning-kbps 17000
 ```
 
-`tune` runs directly in the terminal with no GUI or server. It reports progress to stderr and saves the AviSynth+ script, comparison PNGs, exact encode command, and `job.json` under `.encodeassistant-jobs/`. Use `--work` to select another directory, `--json` for a completed report on stdout, or `--full-encode` for an optional video-only full encode after a transparent result. When you omit `--tuning-kbps`, the CLI uses 90% of the expected final bitrate for every two-pass trial. Use `--crop 62,0,60,0` to override the crop and `--scan` to override scan detection when needed.
+`doctor` lists the tool paths, tries to read a test frame through AviSynth+ and Avs2YUV with FFMS2 loaded, and checks whether the API key is set. Use `encodeassistant doctor --json` for machine-readable output. For a first tuning run, use a representative SDR, constant-frame-rate source with at least 48 frames.
 
-To use the same command as a headless server for the GUI:
+### Tune a source and get a recommendation
 
 ```sh
-encodeassistant serve --library "/path/to/videos"
+encodeassistant tune "/srv/videos/My Film.mkv" --expected-kbps 20000 --tuning-kbps 17000
 ```
+
+Both bitrates are video bitrates in kb/s. In this example, every two-pass tuning candidate uses 17,000 kb/s, slightly below the estimated final rate of 20,000 kb/s. This makes small changes easier to spot. If you omit `--tuning-kbps`, the CLI uses 90% of `--expected-kbps`, rounded down. The expected rate is also used to verify the chosen settings on a second set of excerpts before the CRF sweep. The resulting CRF encode has a source-dependent bitrate.
+
+The CLI checks MediaInfo, prepares the crop and scan handling, compares AQ modes before AQ strength, and tests deblock and psy-RDO. Sol reviews selected frames at timestamps where all candidates encoded a B-frame. After the settings pass the second-set check, the CLI locks them and runs the CRF trials.
+
+### Override a known crop or scan type
+
+```sh
+encodeassistant tune "input.mkv" --expected-kbps 20000   --tuning-kbps 17000 --crop 62,0,60,0 --scan progressive
+```
+
+Crop values are even, nonnegative pixel counts in **left, top, right, bottom** order. This example removes 62 pixels from the left and 60 from the right. Use `--crop 0,0,0,0` to keep the whole frame or omit `--crop` to detect the borders automatically. `--scan` defaults to `auto`. Use `progressive` for a known progressive source or `tff` and `bff` for interlaced sources with top-field-first and bottom-field-first order, respectively. The interlaced modes use Yadifmod2.
+
+### Save a JSON report or encode the full video
+
+```sh
+encodeassistant tune "input.mkv" --expected-kbps 20000 --json > encode-report.json
+```
+
+`--json` writes the completed report to stdout. Progress stays on stderr, so it remains visible in the terminal. The JSON includes the absolute `job_directory` path. By default each run saves its files in a separate folder under `.encodeassistant-jobs/` in the current directory. The folder contains `job.json`, `worker.log`, and any comparison PNGs from the visual review. Each panel shows the source on the left and the encoded candidate on the right. When the tests find a transparent CRF, the report includes the selected settings, sample bitrate, and exact commands. The job folder also gets the prepared `movie.avs` script.
+
+```sh
+encodeassistant tune "input.mkv" --expected-kbps 20000 --tuning-kbps 17000   --full-encode --work "/srv/encode-jobs"
+```
+
+This saves `video.mkv` in the job folder after the CRF check passes. The output contains the encoded video track. If a run finishes without a transparent CRF, it saves the findings and exits with code `3`. Use the saved report and comparison images to see where verification stopped.
+
+| `tune` exit code | Meaning |
+| --- | --- |
+| `0` | Recommended CRF found and any requested full encode completed. |
+| `1` | The running job failed. Open the job folder and inspect `worker.log` and `job.json`. |
+| `2` | Command-line input or setup error. Read stderr for details. |
+| `3` | Visual review finished without establishing a transparent CRF. |
+| `130` | The job was cancelled with Ctrl+C. |
+
+### Serve the graphical clients
+
+Start the worker on the encoding machine for a local GUI connection.
+
+```sh
+encodeassistant serve --library "/srv/videos"
+```
+
+Connect the app to `http://127.0.0.1:8765`. The server lists source files from `--library` and puts job files in its `.encodeassistant-jobs/` directory by default.
+
+For a GUI on another device, set `ENCODEASSISTANT_WORKER_TOKEN` on the encoding machine and start the worker on your trusted local network.
+
+```sh
+export ENCODEASSISTANT_WORKER_TOKEN='replace-with-your-worker-token'
+encodeassistant serve --library "/srv/videos" --work "/srv/encode-jobs"   --host 0.0.0.0 --port 8765
+```
+
+Enter the server's LAN address, port, and worker token in the app. Run `encodeassistant tune --help`, `encodeassistant doctor --help`, or `encodeassistant serve --help` for the options on your installed version.
 
 ## Start the worker
 
