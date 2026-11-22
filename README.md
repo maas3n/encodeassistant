@@ -2,6 +2,44 @@
 
 Encode Assistant runs a repeatable x264 tuning workflow and asks GPT-6.2 Sol to visually compare matched samples. The graphical client runs on Windows, Linux, macOS, Android, iOS, and Chromebooks with Android app support. It lets you select a source, configure tuning, control jobs, and inspect the final settings and visual comparisons. A separate worker runs on the machine with the video files and encoding tools. Every client connects to that same worker.
 
+## Terminal CLI
+
+Install with Homebrew on macOS or Linux:
+
+```sh
+brew tap maas3n/encodeassistant https://github.com/maas3n/encodeassistant.git
+brew install maas3n/encodeassistant/encodeassistant
+```
+
+On Debian 13, download the architecture-independent `.deb` from [Releases](https://github.com/maas3n/encodeassistant/releases) and run:
+
+```sh
+sudo apt install ./encodeassistant_0.1.0_all.deb
+```
+
+On other Unix systems with Python 3.12 or later and pipx:
+
+```sh
+pipx install 'git+https://github.com/maas3n/encodeassistant.git'
+```
+
+The packages install the Encode Assistant command. Install MediaInfo, AviSynth+, an AviSynth-enabled FFMS2 plugin, Avs2YUV, standalone x264, and ffprobe on the machine that will encode. Homebrew provides `media-info`, `avisynthplus`, `x264`, and `ffmpeg` (for ffprobe). FFMS2 must expose `FFVideoSource` to AviSynth+.
+
+With the tools on PATH and `OPENAI_API_KEY` set in your environment:
+
+```sh
+encodeassistant doctor
+encodeassistant tune "input.mkv" --expected-kbps 20000 --tuning-kbps 17000
+```
+
+`tune` runs directly in the terminal with no GUI or server. It reports progress to stderr and saves the AviSynth+ script, comparison PNGs, exact encode command, and `job.json` under `.encodeassistant-jobs/`. Use `--work` to select another directory, `--json` for a completed report on stdout, or `--full-encode` for an optional video-only full encode after a transparent result. When you omit `--tuning-kbps`, the CLI uses 90% of the expected final bitrate for every two-pass trial. Use `--crop 62,0,60,0` to override the crop and `--scan` to override scan detection when needed.
+
+To use the same command as a headless server for the GUI:
+
+```sh
+encodeassistant serve --library "/path/to/videos"
+```
+
 ## Start the worker
 
 Install Python 3.12+, MediaInfo, AviSynth+, FFMS2, Avs2YUV, standalone x264, and ffprobe. Ensure mediainfo, avs2yuv, x264, and ffprobe are on the worker's PATH. ffprobe reads frame types and timestamps. The worker encodes with the AviSynth+ → Avs2YUV → x264 pipe.

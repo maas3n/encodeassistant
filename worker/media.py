@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import threading
 from dataclasses import dataclass
 from fractions import Fraction
@@ -46,6 +47,19 @@ class Cancelled(Exception):
     pass
 
 
+def external_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    if getattr(sys, "frozen", False):
+        # The bundled CLI must let external encoders use their own system libraries.
+        for name in ("LD_LIBRARY_PATH", "LIBPATH"):
+            original = environment.pop(f"{name}_ORIG", None)
+            if original is None:
+                environment.pop(name, None)
+            else:
+                environment[name] = original
+    return environment
+
+
 class Runner:
     def __init__(self, directory: Path, cancelled: threading.Event):
         self.directory = directory
@@ -53,13 +67,14 @@ class Runner:
 
     def run(self, commands: list[list[str]], output: BinaryIO | int = subprocess.DEVNULL):
         processes = []
+        environment = external_environment()
         with (self.directory / "worker.log").open("ab") as log:
             try:
                 for index, command in enumerate(commands):
                     self.check()
                     previous = processes[-1].stdout if processes else None
                     process = subprocess.Popen(
-                        command, cwd=self.directory, stdin=previous,
+                        command, cwd=self.directory, stdin=previous, env=environment,
                         stdout=output if index == len(commands) - 1 else subprocess.PIPE,
                         stderr=log,
                     )

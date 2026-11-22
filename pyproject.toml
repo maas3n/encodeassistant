@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "encodeassistant"
+dynamic = ["version", "dependencies"]
+description = "Headless AviSynth+ and x264 tuning with matched B-frame visual review"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.urls]
+Repository = "https://github.com/maas3n/encodeassistant"
+
+[project.scripts]
+encodeassistant = "worker.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "worker.__version__"}
+dependencies = {file = ["worker/requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["worker"]

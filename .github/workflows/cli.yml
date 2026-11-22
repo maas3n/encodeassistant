@@ -1,0 +1,105 @@
+name: Build CLI packages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'worker/**'
+      - 'ci/build_deb.py'
+      - 'ci/cli_entry.py'
+      - 'pyproject.toml'
+      - '.github/workflows/cli.yml'
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'ci/build_deb.py'
+      - 'ci/cli_entry.py'
+      - 'pyproject.toml'
+      - '.github/workflows/cli.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debian:
+    name: Debian package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build and install on Debian 13
+        run: |
+          python ci/build_deb.py dist
+          docker run --rm -v "$PWD/dist:/packages:ro" debian:13 sh -euxc '
+            apt-get update
+            apt-get install -y --no-install-recommends /packages/*.deb
+            encodeassistant --version
+            encodeassistant tune --help
+            encodeassistant serve --help
+          '
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cli-debian
+          path: dist/*.deb
+          if-no-files-found: error
+
+  standalone:
+    name: CLI • ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-15
+          - platform: macos-x86_64
+            runner: macos-15-intel
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+          - platform: linux-arm64
+            runner: ubuntu-22.04-arm
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - name: Install and test the CLI
+        run: |
+          python -m pip install 'pyinstaller>=6.12,<7' .
+          encodeassistant --version
+          python -m unittest discover -s worker/tests -v
+      - name: Build and test the standalone executable
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --onefile --name encodeassistant --paths . --collect-submodules uvicorn ci/cli_entry.py
+          dist/encodeassistant --version
+          dist/encodeassistant tune --help
+          dist/encodeassistant serve --help
+          library=$(mktemp -d)
+          dist/encodeassistant serve --library "$library" --port 18765 > worker-smoke.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --max-time 1 --fail --silent http://127.0.0.1:18765/health; then
+              mkdir -p packages
+              tar -czf "packages/encodeassistant-$PLATFORM.tar.gz" -C dist encodeassistant -C "$PWD" LICENSE
+              exit 0
+            fi
+            sleep 1
+          done
+          cat worker-smoke.log
+          exit 1
+      - uses: actions/upload-artifact@v6
+        with:
+          name: cli-${{ matrix.platform }}
+          path: packages/*.tar.gz
+          if-no-files-found: error

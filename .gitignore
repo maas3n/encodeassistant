@@ -5,6 +5,10 @@ __pycache__/
 .venv/
 .pytest_cache/
 .encodeassistant-jobs/
+/build/
+/dist/
+/*.spec
+/*.egg-info/
 app/.dart_tool/
 app/.flutter-plugins*
 app/.idea/

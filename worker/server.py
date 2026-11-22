@@ -184,16 +184,28 @@ def create_app(library: Path, work: Path, token: str | None = None) -> FastAPI:
     return app
 
 
-def main():
-    import uvicorn
-    parser = argparse.ArgumentParser(description="Run the Encode Assistant worker.")
+def add_server_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--library", type=Path, required=True)
     parser.add_argument("--work", type=Path)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
-    args = parser.parse_args()
+
+
+def serve(args: argparse.Namespace):
+    import uvicorn
+
     token = os.environ.get("ENCODEASSISTANT_WORKER_TOKEN")
     if args.host not in ("localhost", "127.0.0.1", "::1") and not token:
-        parser.error("Set ENCODEASSISTANT_WORKER_TOKEN before listening on the network.")
+        raise ValueError("Set ENCODEASSISTANT_WORKER_TOKEN before listening on the network.")
     work = args.work or (args.library / ".encodeassistant-jobs")
     uvicorn.run(create_app(args.library, work, token), host=args.host, port=args.port)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run the Encode Assistant worker.")
+    add_server_arguments(parser)
+    args = parser.parse_args()
+    try:
+        serve(args)
+    except ValueError as error:
+        parser.error(str(error))
