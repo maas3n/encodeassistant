@@ -177,13 +177,13 @@ For local development, install Flutter 3.50.1 and the tools for your target plat
     flutter run -d linux
 
 
-    ## Support encodeassistant
+## Support encodeassistant
 
 If encodeassistant is useful to you and you'd like to support its development, Bitcoin donations are appreciated but entirely optional.
 
 <img src="https://upload.wikimedia.org/wikipedia/commons/4/46/Bitcoin.svg" width="14" height="14"> **BTC:** `bc1q79hj2zukfmm75278a7wssjmexanuhvs5nequel`
 
 
-    ## License
+## License
 
 encodeassistant is licensed under the [MIT License](LICENSE). Third-party components remain governed by their own licenses.
