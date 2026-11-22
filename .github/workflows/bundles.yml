@@ -98,8 +98,15 @@ jobs:
             mingw-w64-ucrt-x86_64-nasm
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-zlib
-      - name: Fetch pinned media inputs
+      - name: Restore built media toolkit
+        id: media-cache
         if: steps.select.outputs.build == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: media
+          key: media-${{ matrix.platform }}-${{ hashFiles('ci/media-sources.json', 'ci/build_media.sh', 'ci/patches/**') }}
+      - name: Fetch pinned media inputs
+        if: steps.select.outputs.build == 'true' && steps.media-cache.outputs.cache-hit != 'true'
         shell: bash
         env:
           MEDIAINFO_VENDOR: ${{ matrix.vendor }}
@@ -110,13 +117,19 @@ jobs:
             python ci/fetch_media.py media-inputs
           fi
       - name: Build media toolkit on Unix
-        if: steps.select.outputs.build == 'true' && runner.os != 'Windows'
+        if: steps.select.outputs.build == 'true' && steps.media-cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
         shell: bash
         run: ci/build_media.sh "$PLATFORM" media-inputs media
       - name: Build media toolkit on Windows
-        if: steps.select.outputs.build == 'true' && runner.os == 'Windows'
+        if: steps.select.outputs.build == 'true' && steps.media-cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
         shell: msys2 {0}
         run: ci/build_media.sh "$PLATFORM" media-inputs media
+      - name: Save built media toolkit
+        if: steps.select.outputs.build == 'true' && steps.media-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: media
+          key: ${{ steps.media-cache.outputs.cache-primary-key }}
       - name: Build standalone worker
         if: steps.select.outputs.build == 'true'
         shell: bash

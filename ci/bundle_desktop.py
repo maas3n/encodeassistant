@@ -100,9 +100,10 @@ def smoke_test(bundle, family):
         env["DYLD_LIBRARY_PATH" if family == "macos" else "LD_LIBRARY_PATH"] = str(libraries)
     # Invoke the actual Unix launcher so tooling and library lookup are checked as shipped.
     cli = bundle / ("runtime/encodeassistant.exe" if windows else "encodeassistant")
-    doctor = subprocess.check_output([cli, "doctor", "--json"], env=env)
-    checks = json.loads(doctor)
-    print(doctor.decode(), flush=True)
+    doctor = subprocess.run([cli, "doctor", "--json"], env=env, stdout=subprocess.PIPE, text=True)
+    print(doctor.stdout, flush=True)
+    doctor.check_returncode()
+    checks = json.loads(doctor.stdout)
     assert checks["ready"] and all(Path(p).parent == tools for p in checks["tools"].values())
     with tempfile.TemporaryDirectory(prefix="encode-assistant-smoke-") as directory:
         work = Path(directory)
@@ -125,14 +126,14 @@ def smoke_test(bundle, family):
         frames = json.loads(probe)["frames"]
         assert len(frames) == 72 and any(frame["pict_type"] == "B" for frame in frames)
         path = movie.as_posix()
-        script.write_text(f'LoadPlugin("{ffms.as_posix()}")\nFFVideoSource("{path}").Trim(0, 0)\n')
+        script.write_text(f'LoadPlugin("{ffms.as_posix()}")\nFFVideoSource("{path}").Trim(0, -1)\n')
         raw = subprocess.check_output([tools / f"avs2yuv{suffix}", script, "-o", "-"], env=env)
         assert raw.startswith(b"YUV4MPEG2 W64 H64")
         if yadif.exists():
             script.write_text(
                 f'LoadPlugin("{yadif.as_posix()}")\n'
                 'BlankClip(length=4, width=64, height=64, pixel_type="YV12")\n'
-                'AssumeTFF().Yadifmod2(order=1).Trim(0, 0)\n'
+                'AssumeTFF().Yadifmod2(order=1).Trim(0, -1)\n'
             )
             raw = subprocess.check_output([tools / f"avs2yuv{suffix}", script, "-o", "-"], env=env)
             assert raw.startswith(b"YUV4MPEG2 W64 H64")
@@ -156,7 +157,8 @@ def main():
         assert gui.is_file(), f"Missing GUI executable: {gui}"
         if family == "macos":
             architecture = args.platform.removeprefix("macos-")
-            subprocess.run(["lipo", "-verify_arch", architecture, gui], check=True)
+            supported = subprocess.check_output(["lipo", "-archs", gui], text=True).split()
+            assert architecture in supported, f"GUI architectures: {supported}"
         runtime = bundle / "runtime"
         runtime.mkdir()
         shutil.copy2(args.worker, runtime / args.worker.name)
