@@ -1,0 +1,16 @@
+.DS_Store
+.env
+*.py[cod]
+__pycache__/
+.venv/
+.pytest_cache/
+.encodeassistant-jobs/
+app/.dart_tool/
+app/.flutter-plugins*
+app/.idea/
+app/build/
+app/android/local.properties
+app/android/.gradle/
+app/ios/Pods/
+app/macos/Pods/
+**/ephemeral/

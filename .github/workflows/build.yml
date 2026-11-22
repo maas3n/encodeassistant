@@ -1,0 +1,124 @@
+name: Build Encode Assistant
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    name: Worker tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - run: python -m pip install -r worker/requirements.txt
+      - run: python -m unittest discover -s worker/tests -v
+
+  app:
+    name: App • ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+          - platform: windows
+            runner: windows-2025
+          - platform: macos
+            runner: macos-15
+          - platform: android
+            runner: ubuntu-24.04
+          - platform: ios
+            runner: macos-15
+    env:
+      PLATFORM: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v5
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.50.1'
+          channel: stable
+          cache: true
+      - if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y -q clang cmake ninja-build pkg-config libgtk-3-dev libstdc++-12-dev
+      - name: Generate the platform project
+        shell: bash
+        run: |
+          template="$RUNNER_TEMP/encode-assistant-template"
+          flutter create --org com.maas3n --project-name encode_assistant --platforms="$PLATFORM" --no-pub "$template"
+          python ci/prepare_platform.py "$template" app "$PLATFORM"
+          mkdir -p dist
+      - name: Resolve app packages
+        working-directory: app
+        run: flutter pub get
+      - name: Analyze and test
+        if: matrix.platform == 'linux'
+        working-directory: app
+        run: |
+          flutter analyze
+          flutter test
+      - name: Build Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        working-directory: app
+        run: |
+          flutter build linux --release
+          tar -C build/linux/x64/release -czf ../dist/encode-assistant-linux-x64.tar.gz bundle
+      - name: Build Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        working-directory: app
+        run: |
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path build/windows/x64/runner/Release/* -DestinationPath ../dist/encode-assistant-windows-x64.zip
+      - name: Build macOS
+        if: matrix.platform == 'macos'
+        shell: bash
+        working-directory: app
+        run: |
+          flutter build macos --release
+          app_bundle=$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)
+          test -n "$app_bundle"
+          ditto -c -k --keepParent "$app_bundle" ../dist/encode-assistant-macos.zip
+      - name: Build Android APK
+        if: matrix.platform == 'android'
+        working-directory: app
+        run: |
+          flutter build apk --debug
+          cp build/app/outputs/flutter-apk/app-debug.apk ../dist/encode-assistant-android-debug.apk
+      - name: Build iOS device and simulator artifacts
+        if: matrix.platform == 'ios'
+        shell: bash
+        working-directory: app
+        run: |
+          flutter build ios --release --no-codesign
+          ditto -c -k --keepParent build/ios/iphoneos/Runner.app ../dist/encode-assistant-ios-unsigned.zip
+          flutter build ios --debug --simulator
+          ditto -c -k --keepParent build/ios/iphonesimulator/Runner.app ../dist/encode-assistant-ios-simulator.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: encode-assistant-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
