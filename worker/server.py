@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import hmac
 import json
 import os
@@ -189,6 +190,7 @@ def add_server_arguments(parser: argparse.ArgumentParser):
     parser.add_argument("--work", type=Path)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--prompt-key", action="store_true", help="Prompt in the terminal if OPENAI_API_KEY is unset")
 
 
 def serve(args: argparse.Namespace):
@@ -197,6 +199,9 @@ def serve(args: argparse.Namespace):
     token = os.environ.get("ENCODEASSISTANT_WORKER_TOKEN")
     if args.host not in ("localhost", "127.0.0.1", "::1") and not token:
         raise ValueError("Set ENCODEASSISTANT_WORKER_TOKEN before listening on the network.")
+    if args.prompt_key and not os.environ.get("OPENAI_API_KEY"):
+        if key := getpass.getpass("OpenAI API key: ").strip():
+            os.environ["OPENAI_API_KEY"] = key
     work = args.work or (args.library / ".encodeassistant-jobs")
     uvicorn.run(create_app(args.library, work, token), host=args.host, port=args.port)
 
