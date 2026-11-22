@@ -14,7 +14,28 @@ The Android and ChromeOS clients use the same debug-signed APK. The iOS download
 
 Use `encodeassistant tune` to run the x264 workflow on the machine holding the video. Use `encodeassistant serve` to run a worker that the graphical clients can connect to.
 
-### Install the CLI
+### Run directly from a desktop bundle
+
+Extract the [bundled release](https://github.com/maas3n/encodeassistant/releases/tag/gui-v0.1.0) and open a terminal in the extracted `Encode Assistant` folder. The launcher uses the bundled media tools and plugins. Set `OPENAI_API_KEY` in that terminal for the visual review. The CLI runs locally without starting the graphical app or the worker server.
+
+In Windows Command Prompt:
+
+```bat
+encodeassistant.cmd doctor
+encodeassistant.cmd tune "D:\Videos\movie.mkv" --expected-kbps 20000 --tuning-kbps 17000 --full-encode
+```
+
+In PowerShell, use `./encodeassistant.cmd` in place of `encodeassistant.cmd`. On Linux and macOS:
+
+```sh
+./encodeassistant doctor
+./encodeassistant tune "/path/to/movie.mkv" --expected-kbps 20000 --tuning-kbps 17000 --full-encode
+```
+
+Omit `--full-encode` for a tuning report and recommended settings. Use `--work` to choose where to save the job files.
+
+### Install the CLI separately
+
 
 #### Homebrew on macOS or Linux
 

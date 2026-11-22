@@ -98,9 +98,12 @@ def smoke_test(bundle, family):
     }
     if not windows:
         env["DYLD_LIBRARY_PATH" if family == "macos" else "LD_LIBRARY_PATH"] = str(libraries)
-    # Invoke the actual Unix launcher so tooling and library lookup are checked as shipped.
-    cli = bundle / ("runtime/encodeassistant.exe" if windows else "encodeassistant")
-    doctor = subprocess.run([cli, "doctor", "--json"], env=env, stdout=subprocess.PIPE, text=True)
+    launcher = ["cmd.exe", "/d", "/c", "encodeassistant.cmd"] if windows else [bundle / "encodeassistant"]
+    doctor = subprocess.run(
+        [*launcher, "doctor", "--json"], cwd=bundle,
+        env={**os.environ, "OPENAI_API_KEY": env["OPENAI_API_KEY"]},
+        stdout=subprocess.PIPE, text=True,
+    )
     print(doctor.stdout, flush=True)
     doctor.check_returncode()
     checks = json.loads(doctor.stdout)

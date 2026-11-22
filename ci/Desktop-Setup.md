@@ -1,6 +1,10 @@
 # Encode Assistant desktop bundle
 
-Extract the entire archive and keep its folder structure. Launch the worker, then open the graphical app. The worker asks for your OpenAI API key in its terminal if the key is absent from the environment.
+Extract the entire archive and keep its folder structure. You can run the bundled CLI directly or connect the graphical app to the worker.
+
+## Use the graphical app
+
+Launch the worker, then open the graphical app. The worker asks for your OpenAI API key in its terminal if the key is absent from the environment.
 
 | Platform | Start the worker | Open the app |
 | --- | --- | --- |
@@ -12,11 +16,23 @@ Enter `http://127.0.0.1:8765` as the worker URL in the app. Keep the worker term
 
 ## Use the bundled CLI
 
-Run `./encodeassistant doctor` on Linux/macOS or `encodeassistant.cmd doctor` in Windows Command Prompt. Set `OPENAI_API_KEY` in that terminal when using the `tune` command directly.
+Open a terminal in the extracted `Encode Assistant` folder. The launcher uses the bundled tools, and `tune` runs locally without a worker server. Set `OPENAI_API_KEY` in your terminal for the visual review.
+
+In Windows Command Prompt:
+
+```bat
+encodeassistant.cmd doctor
+encodeassistant.cmd tune "D:\Videos\movie.mkv" --expected-kbps 20000 --tuning-kbps 17000 --full-encode
+```
+
+In PowerShell, invoke the launcher as `./encodeassistant.cmd`. On Linux and macOS:
 
 ```sh
-./encodeassistant tune "/path/to/source.mkv" --expected-kbps 20000 --tuning-kbps 17000
+./encodeassistant doctor
+./encodeassistant tune "/path/to/movie.mkv" --expected-kbps 20000 --tuning-kbps 17000 --full-encode
 ```
+
+Omit `--full-encode` to get the recommended settings and tuning report. Add `--work` to choose the directory for job files.
 
 ## Connect Android, ChromeOS, iOS, or another desktop
 
