@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: '44976675266'
+      platform:
+        description: Platform to build
+        default: all
+        type: choice
+        options: [all, windows-x86_64, linux-x86_64, macos-arm64, macos-x86_64]
 
 permissions:
   contents: read
@@ -45,34 +50,47 @@ jobs:
     env:
       PLATFORM: ${{ matrix.platform }}
     steps:
+      - name: Select platform
+        id: select
+        shell: bash
+        env:
+          SELECTED_PLATFORM: ${{ inputs.platform }}
+        run: |
+          if [[ "$SELECTED_PLATFORM" == all || "$SELECTED_PLATFORM" == "$PLATFORM" ]]; then
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v6
+        if: steps.select.outputs.build == 'true'
       - uses: actions/download-artifact@v7
+        if: steps.select.outputs.build == 'true'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ inputs.gui_run_id }}
           name: encode-assistant-${{ matrix.artifact }}
           path: gui
       - uses: actions/setup-python@v6
+        if: steps.select.outputs.build == 'true'
         with:
           python-version: '3.12'
       - name: Linux build dependencies
-        if: runner.os == 'Linux'
+        if: steps.select.outputs.build == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --yes nasm ninja-build zlib1g-dev
       - name: macOS build dependencies
-        if: runner.os == 'macOS'
+        if: steps.select.outputs.build == 'true' && runner.os == 'macOS'
         run: |
           for dependency in nasm ninja; do
             command -v "$dependency" || brew install "$dependency"
           done
       - uses: msys2/setup-msys2@v2
-        if: runner.os == 'Windows'
+        if: steps.select.outputs.build == 'true' && runner.os == 'Windows'
         with:
           msystem: UCRT64
           update: true
           install: >-
             make
+            patch
             unzip
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-cmake
@@ -81,6 +99,7 @@ jobs:
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-zlib
       - name: Fetch pinned media inputs
+        if: steps.select.outputs.build == 'true'
         shell: bash
         env:
           MEDIAINFO_VENDOR: ${{ matrix.vendor }}
@@ -91,25 +110,28 @@ jobs:
             python ci/fetch_media.py media-inputs
           fi
       - name: Build media toolkit on Unix
-        if: runner.os != 'Windows'
+        if: steps.select.outputs.build == 'true' && runner.os != 'Windows'
         shell: bash
         run: ci/build_media.sh "$PLATFORM" media-inputs media
       - name: Build media toolkit on Windows
-        if: runner.os == 'Windows'
+        if: steps.select.outputs.build == 'true' && runner.os == 'Windows'
         shell: msys2 {0}
         run: ci/build_media.sh "$PLATFORM" media-inputs media
       - name: Build standalone worker
+        if: steps.select.outputs.build == 'true'
         shell: bash
         run: |
           python -m pip install 'pyinstaller>=6.12,<7' .
           python -m PyInstaller --noconfirm --onefile --name encodeassistant --paths . --collect-submodules uvicorn ci/cli_entry.py
       - name: Assemble and check the bundle
+        if: steps.select.outputs.build == 'true'
         shell: bash
         env:
           GUI_ARCHIVE: ${{ matrix.archive }}
           EXE_SUFFIX: ${{ matrix.exe }}
         run: python ci/bundle_desktop.py "$PLATFORM" "gui/$GUI_ARCHIVE" "dist/encodeassistant$EXE_SUFFIX" media packages
       - uses: actions/upload-artifact@v6
+        if: steps.select.outputs.build == 'true'
         with:
           name: desktop-${{ matrix.platform }}
           path: packages/*

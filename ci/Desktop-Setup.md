@@ -38,6 +38,6 @@ In the client, enter the encoding computer's LAN address, for example `http://19
 
 ## Included tools
 
-The bundle contains standalone x264, AviSynth+, Avs2YUV, the FFMS2 AviSynth plugin, MediaInfo, and ffprobe with its shared FFmpeg libraries. Yadifmod2 is included in the x86-64 bundles. The Apple Silicon bundle supports progressive sources and can use a separately installed ARM64 Yadifmod2-compatible plugin if you set `ENCODEASSISTANT_YADIF_PLUGIN`. The Intel macOS bundle has Yadifmod2 and can be run under Rosetta on Apple Silicon.
+The bundle contains standalone x264, AviSynth+, Avs2YUV, the FFMS2 AviSynth plugin, MediaInfo, and ffprobe with its shared FFmpeg libraries. Yadifmod2 is included for interlaced sources. The Apple Silicon build uses the plugin’s scalar implementation.
 
 Third-party license texts and build inputs are described under `tools/notices`. Source archives and build scripts are also available alongside the desktop downloads on the release page.

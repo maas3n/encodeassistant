@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 platform=$1
 archives=$(cd "$2" && pwd)
 mkdir -p "$3"
@@ -46,7 +47,7 @@ for project in avisynthplus avs2yuv ffms2 x264 ffmpeg yadifmod2 mediainfo; do
     relative=${notice#"$scratch/$project/"}
     mkdir -p "$prefix/notices/$project/$(dirname "$relative")"
     cp "$notice" "$prefix/notices/$project/$relative"
-  done < <(find "$scratch/$project" -maxdepth 4 -type f \( -iname 'license*' -o -iname 'copying*' -o -iname 'copyright*' \) -print0)
+  done < <(find "$scratch/$project" -maxdepth 4 -type f \( -iname 'license*' -o -iname 'copying*' -o -iname 'copyright*' -o -iname 'gpl.txt' \) -print0)
 done
 
 echo '::group::AviSynth+ and Avs2YUV'
@@ -55,7 +56,7 @@ cmake -G Ninja -S "$scratch/avisynthplus" -B "$scratch/avisynth-build" \
   -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX="$tool_prefix"
 cmake --build "$scratch/avisynth-build" --parallel "$jobs"
 cmake --install "$scratch/avisynth-build"
-cc -O2 -I"$prefix/include/avisynth" "$scratch/avs2yuv/avs2yuv.c" \
+cc -std=gnu99 -O2 -I"$scratch/avs2yuv" -I"$prefix/include/avisynth" "$scratch/avs2yuv/avs2yuv.c" \
   -o "$prefix/bin/avs2yuv$exe" "${avs2yuv_extra[@]}"
 echo '::endgroup::'
 
@@ -84,7 +85,12 @@ c++ -std=c++11 -O2 "$shared" -fPIC -fvisibility=hidden \
 echo '::endgroup::'
 
 echo '::group::Yadifmod2'
-if [[ "$platform" != macos-arm64 ]]; then
+patch -d "$scratch/yadifmod2" -p1 < "$script_dir/patches/yadifmod2-scalar.patch"
+if [[ "$platform" == macos-arm64 ]]; then
+  c++ -std=c++11 -O2 -dynamiclib -DYADIF_SCALAR_ONLY -I"$prefix/include/avisynth" \
+    "$scratch/yadifmod2/src/proc_filter.cpp" "$scratch/yadifmod2/src/yadifmod2.cpp" \
+    -o "$plugin_dir/yadifmod2$plugin"
+else
   cmake -G Ninja -S "$scratch/yadifmod2" -B "$scratch/yadif-build" \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$tool_prefix" -DCMAKE_DISABLE_FIND_PACKAGE_Git=TRUE
   cmake --build "$scratch/yadif-build" --parallel "$jobs"

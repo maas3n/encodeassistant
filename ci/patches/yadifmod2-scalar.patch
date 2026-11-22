@@ -1,0 +1,50 @@
+--- a/src/proc_filter.cpp
++++ b/src/proc_filter.cpp
+@@ -27,6 +27,7 @@
+ 
+ 
+ #include <map>
++#include <tuple>
+ 
+ #include "common.h"
+ 
+--- a/src/yadifmod2.cpp
++++ b/src/yadifmod2.cpp
+@@ -140,6 +140,9 @@
+         }
+     }();
+ 
++#ifdef YADIF_SCALAR_ONLY
++    mainProc = get_main_proc(bits, mode < 2, edeint != nullptr, arch_t::NO_SIMD);
++#else
+     if (arch != arch_t::NO_SIMD && bits == 32)
+         arch = arch < arch_t::USE_AVX ? arch_t::USE_SSE2 : arch_t::USE_AVX;
+     else if (arch == arch_t::USE_AVX && bits != 32)
+@@ -153,7 +156,8 @@
+         case arch_t::USE_SSE41: mainProc = get_main_proc_sse41(bits, mode < 2, edeint != nullptr, arch); break;
+         case arch_t::USE_AVX: mainProc = get_main_proc_avx(bits, mode < 2, edeint != nullptr, arch); break;
+         default: mainProc = get_main_proc_avx2(bits, mode < 2, edeint != nullptr, arch); break;
+-    }      
++    }
++#endif
+ 
+     child->SetCacheHints(CACHE_WINDOW, 3);
+     if (edeint) {
+@@ -263,6 +267,9 @@
+ 
+ static arch_t get_arch(int opt, IScriptEnvironment* env) noexcept
+ {
++#ifdef YADIF_SCALAR_ONLY
++    return arch_t::NO_SIMD;
++#else
+     const bool has_sse2 = !!(env->GetCPUFlags() & CPUF_SSE2);
+     const bool has_ssse3 = !!(env->GetCPUFlags() & CPUF_SSSE3);
+     const bool has_sse41 = !!(env->GetCPUFlags() & CPUF_SSE4_1);
+@@ -285,6 +292,7 @@
+         return arch_t::USE_AVX;
+ 
+     return arch_t::USE_AVX2;
++#endif
+ }
+ 
+ 
